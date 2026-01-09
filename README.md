@@ -22,6 +22,7 @@ npm install -g @antskill/your-skill
 ## ✨ Features
 
 - ✅ **Official Specification**: Fully compliant with Claude Code skills format
+- ✅ **Multi-Tool Support**: Install to Claude Code, Cursor, Windsurf, and more! (See [Multi-Tool Support](MULTI-TOOL-SUPPORT.md))
 - ✅ **Smart Installation**: Auto-detects global vs project-level installation
 - ✅ **Progressive Disclosure**: Supports main SKILL.md + reference files
 - ✅ **Lifecycle Management**: Install, update, uninstall scripts included

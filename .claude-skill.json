@@ -9,5 +9,42 @@
   },
   "hooks": {
     "postinstall": "bash scripts/setup.sh"
+  },
+  "targets": {
+    "claude-code": {
+      "enabled": true,
+      "paths": {
+        "global": ".claude/skills",
+        "project": ".claude/skills"
+      }
+    },
+    "cursor": {
+      "enabled": false,
+      "paths": {
+        "global": ".cursor/skills",
+        "project": ".cursor/skills"
+      }
+    },
+    "windsurf": {
+      "enabled": false,
+      "paths": {
+        "global": ".windsurf/skills",
+        "project": ".windsurf/skills"
+      }
+    },
+    "aider": {
+      "enabled": false,
+      "paths": {
+        "global": ".aider/skills",
+        "project": ".aider/skills"
+      }
+    },
+    "custom": {
+      "enabled": false,
+      "paths": {
+        "global": ".ai-skills",
+        "project": ".ai-skills"
+      }
+    }
   }
 }

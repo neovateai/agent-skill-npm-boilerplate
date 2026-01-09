@@ -4,15 +4,36 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-function detectInstallLocation() {
+function getEnabledTargets(config) {
+  // 如果没有 targets 配置，使用默认的 Claude Code 配置（向后兼容）
+  if (!config.targets) {
+    return [{
+      name: 'claude-code',
+      paths: {
+        global: '.claude/skills',
+        project: '.claude/skills'
+      }
+    }];
+  }
+
+  // 返回所有启用的目标
+  return Object.entries(config.targets)
+    .filter(([_, target]) => target.enabled)
+    .map(([name, target]) => ({
+      name,
+      paths: target.paths
+    }));
+}
+
+function detectInstallLocation(targetPaths) {
   // 检测是否为全局安装
   const isGlobal = process.env.npm_config_global === 'true';
 
   if (isGlobal) {
-    // 全局安装：安装到 ~/.claude/skills/
+    // 全局安装：安装到用户主目录
     return {
       type: 'personal',
-      base: path.join(os.homedir(), '.claude', 'skills')
+      base: path.join(os.homedir(), targetPaths.global)
     };
   } else {
     // 项目级安装：查找项目根目录
@@ -30,27 +51,20 @@ function detectInstallLocation() {
 
     return {
       type: 'project',
-      base: path.join(projectRoot, '.claude', 'skills')
+      base: path.join(projectRoot, targetPaths.project)
     };
   }
 }
 
-function installSkill() {
-  console.log('📦 Installing Claude Code Skill...\n');
-
-  // 读取配置
-  const configPath = path.join(__dirname, '.claude-skill.json');
-  if (!fs.existsSync(configPath)) {
-    throw new Error('.claude-skill.json not found');
-  }
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+function installToTarget(target, config) {
+  console.log(`\n📦 Installing to ${target.name}...`);
 
   // 确定安装位置
-  const location = detectInstallLocation();
+  const location = detectInstallLocation(target.paths);
   const targetDir = path.join(location.base, config.name);
 
-  console.log(`Installation type: ${location.type}`);
-  console.log(`Target directory: ${targetDir}\n`);
+  console.log(`  Type: ${location.type}`);
+  console.log(`  Directory: ${targetDir}`);
 
   // 创建目标目录
   if (!fs.existsSync(targetDir)) {
@@ -63,14 +77,14 @@ function installSkill() {
     throw new Error('SKILL.md is required but not found');
   }
   fs.copyFileSync(skillMdSource, path.join(targetDir, 'SKILL.md'));
-  console.log('✓ Copied SKILL.md');
+  console.log('  ✓ Copied SKILL.md');
 
   // 拷贝其他文件
   if (config.files) {
     Object.entries(config.files).forEach(([source, dest]) => {
       const sourcePath = path.join(__dirname, source);
       if (!fs.existsSync(sourcePath)) {
-        console.warn(`⚠ Warning: ${source} not found, skipping`);
+        console.warn(`  ⚠ Warning: ${source} not found, skipping`);
         return;
       }
 
@@ -78,7 +92,7 @@ function installSkill() {
 
       if (fs.statSync(sourcePath).isDirectory()) {
         copyDir(sourcePath, destPath);
-        console.log(`✓ Copied directory: ${source}`);
+        console.log(`  ✓ Copied directory: ${source}`);
       } else {
         // 确保目标目录存在
         const destDir = path.dirname(destPath);
@@ -86,35 +100,84 @@ function installSkill() {
           fs.mkdirSync(destDir, { recursive: true });
         }
         fs.copyFileSync(sourcePath, destPath);
-        console.log(`✓ Copied file: ${source}`);
+        console.log(`  ✓ Copied file: ${source}`);
       }
     });
   }
 
   // 更新 manifest
-  updateManifest(location.base, config);
-
-  console.log('\n✅ Skill installed successfully!');
-  console.log(`\nLocation: ${targetDir}`);
-  console.log(`Type: ${location.type} skill`);
+  updateManifest(location.base, config, target.name);
 
   // 运行 postinstall hooks
   if (config.hooks && config.hooks.postinstall) {
-    console.log('\n🔧 Running postinstall hook...');
+    console.log('  🔧 Running postinstall hook...');
     const { execSync } = require('child_process');
     try {
       execSync(config.hooks.postinstall, {
         cwd: targetDir,
-        stdio: 'inherit'
+        stdio: 'pipe'
       });
+      console.log('  ✓ Postinstall hook completed');
     } catch (error) {
-      console.warn(`\n⚠ Warning: postinstall hook failed: ${error.message}`);
+      console.warn(`  ⚠ Warning: postinstall hook failed`);
     }
   }
 
-  console.log('\n📖 Usage:');
-  console.log('Ask Claude: "What skills are available?"');
-  console.log('Or: "Help me write a commit message"');
+  console.log(`  ✅ Installed to ${target.name}`);
+  return targetDir;
+}
+
+function installSkill() {
+  console.log('🚀 Installing AI Coding Skill...\n');
+
+  // 读取配置
+  const configPath = path.join(__dirname, '.claude-skill.json');
+  if (!fs.existsSync(configPath)) {
+    throw new Error('.claude-skill.json not found');
+  }
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+  // 获取启用的目标
+  const enabledTargets = getEnabledTargets(config);
+
+  if (enabledTargets.length === 0) {
+    console.warn('⚠ No targets enabled in configuration');
+    console.warn('Please enable at least one target in .claude-skill.json');
+    return;
+  }
+
+  console.log(`Installing skill "${config.name}" to ${enabledTargets.length} target(s):`);
+  enabledTargets.forEach(target => {
+    console.log(`  • ${target.name}`);
+  });
+
+  // 安装到所有启用的目标
+  const installedPaths = [];
+  for (const target of enabledTargets) {
+    try {
+      const installPath = installToTarget(target, config);
+      installedPaths.push({ target: target.name, path: installPath });
+    } catch (error) {
+      console.error(`\n❌ Failed to install to ${target.name}:`, error.message);
+    }
+  }
+
+  // 总结
+  console.log('\n' + '='.repeat(60));
+  console.log('✅ Installation Complete!');
+  console.log('='.repeat(60));
+
+  if (installedPaths.length > 0) {
+    console.log('\nInstalled to:');
+    installedPaths.forEach(({ target, path: installPath }) => {
+      console.log(`  • ${target}: ${installPath}`);
+    });
+
+    console.log('\n📖 Next Steps:');
+    console.log('  1. Restart your AI coding tool(s)');
+    console.log('  2. Ask: "What skills are available?"');
+    console.log('  3. Start using your skill!');
+  }
 }
 
 function copyDir(src, dest) {
@@ -133,7 +196,7 @@ function copyDir(src, dest) {
   }
 }
 
-function updateManifest(skillsDir, config) {
+function updateManifest(skillsDir, config, targetName) {
   const manifestPath = path.join(skillsDir, '.skills-manifest.json');
   let manifest = { skills: {} };
 
@@ -141,7 +204,7 @@ function updateManifest(skillsDir, config) {
     try {
       manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     } catch (error) {
-      console.warn('Warning: Could not parse existing manifest, creating new one');
+      console.warn('  Warning: Could not parse existing manifest, creating new one');
       manifest = { skills: {} };
     }
   }
@@ -150,7 +213,8 @@ function updateManifest(skillsDir, config) {
     version: config.version,
     installedAt: new Date().toISOString(),
     package: config.package || `@antskill/${config.name}`,
-    path: path.join(skillsDir, config.name)
+    path: path.join(skillsDir, config.name),
+    target: targetName
   };
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
@@ -164,7 +228,8 @@ try {
   console.error('\nTroubleshooting:');
   console.error('- Ensure .claude-skill.json exists and is valid JSON');
   console.error('- Ensure SKILL.md exists');
-  console.error('- Check file permissions for ~/.claude directory');
+  console.error('- Check file permissions for target directories');
+  console.error('- Verify at least one target is enabled in .claude-skill.json');
   console.error('- Try running with sudo for global installation (if needed)');
   process.exit(1);
 }
