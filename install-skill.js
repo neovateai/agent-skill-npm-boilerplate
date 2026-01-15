@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
 const { getEnabledTargets,extractSkillName, detectInstallLocation } = require('./utils');
 
@@ -30,44 +29,31 @@ function installToTarget(target, config) {
     console.log(`  ✓ Removed directory: ${config.name}`);
   }
 
-  // Create target directory
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
+  // Remove existing target (file, directory, or symlink)
+  try {
+    const stat = fs.lstatSync(targetDir);
+    if (stat) {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+    }
+  } catch (e) {
+    // Target doesn't exist, which is fine
   }
 
-  // Copy SKILL.md (required)
+  // Ensure parent directory exists
+  const parentDir = path.dirname(targetDir);
+  if (!fs.existsSync(parentDir)) {
+    fs.mkdirSync(parentDir, { recursive: true });
+  }
+
+  // Verify SKILL.md exists (required)
   const skillMdSource = path.join(__dirname, 'SKILL.md');
   if (!fs.existsSync(skillMdSource)) {
     throw new Error('SKILL.md is required but not found');
   }
-  fs.copyFileSync(skillMdSource, path.join(targetDir, 'SKILL.md'));
-  console.log('  ✓ Copied SKILL.md');
 
-  // Copy other files
-  if (config.files) {
-    Object.entries(config.files).forEach(([source, dest]) => {
-      const sourcePath = path.join(__dirname, source);
-      if (!fs.existsSync(sourcePath)) {
-        console.warn(`  ⚠ Warning: ${source} not found, skipping`);
-        return;
-      }
-
-      const destPath = path.join(targetDir, dest);
-
-      if (fs.statSync(sourcePath).isDirectory()) {
-        copyDir(sourcePath, destPath);
-        console.log(`  ✓ Copied directory: ${source}`);
-      } else {
-        // Ensure target directory exists
-        const destDir = path.dirname(destPath);
-        if (!fs.existsSync(destDir)) {
-          fs.mkdirSync(destDir, { recursive: true });
-        }
-        fs.copyFileSync(sourcePath, destPath);
-        console.log(`  ✓ Copied file: ${source}`);
-      }
-    });
-  }
+  // Create symlink to the package directory
+  fs.symlinkSync(__dirname, targetDir, 'dir');
+  console.log(`  ✓ Created symlink: ${targetDir} -> ${__dirname}`);
 
   // Update manifest
   updateManifest(location.base, config, target.name);
@@ -141,22 +127,6 @@ function installSkill() {
     console.log('  1. Restart your AI coding tool(s)');
     console.log('  2. Ask: "What skills are available?"');
     console.log('  3. Start using your skill!');
-  }
-}
-
-function copyDir(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-
-  for (let entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-
-    if (entry.isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
   }
 }
 
