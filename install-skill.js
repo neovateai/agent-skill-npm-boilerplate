@@ -9,10 +9,10 @@ const { getEnabledTargets,extractSkillName, detectInstallLocation } = require('.
 function installToTarget(target, config) {
   console.log(`\n📦 Installing to ${target.name}...`);
 
-  // 检测是否为全局安装
+  // Check if this is a global installation
   const isGlobal = process.env.npm_config_global === 'true';
 
-  // 确定安装位置
+  // Determine installation location
   const location = detectInstallLocation(target.paths, isGlobal);
 
   // Extract skill name from package name (remove scope prefix)
