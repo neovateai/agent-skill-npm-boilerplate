@@ -11,10 +11,7 @@
   },
   "files": [
     "SKILL.md",
-    "reference.md",
-    "examples.md",
-    "scripts/",
-    ".claude-skill.json"
+    "scripts/"
   ],
   "dependencies": {
     "@agentskill/installer": "^1.0.0"
