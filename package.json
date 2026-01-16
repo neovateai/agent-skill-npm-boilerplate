@@ -4,9 +4,9 @@
   "description": "YOUR SKILL DESCRIPTION - Brief description of what this skill does",
   "main": "index.js",
   "scripts": {
-    "postinstall": "node install-skill.js",
-    "preuninstall": "node uninstall-skill.js",
-    "test": "node install-skill.js && echo 'Installation test completed. Check ~/.claude/skills/'",
+    "postinstall": "agent-skill-installer install",
+    "preuninstall": "agent-skill-installer uninstall",
+    "test": "agent-skill-installer install --dry-run && echo 'Installation test completed'",
     "lint": "echo 'Add your linting commands here'"
   },
   "files": [
@@ -14,10 +14,11 @@
     "reference.md",
     "examples.md",
     "scripts/",
-    "install-skill.js",
-    "uninstall-skill.js",
     ".claude-skill.json"
   ],
+  "dependencies": {
+    "@agent-skill/installer": "file:../agent-skill-installer"
+  },
   "keywords": [
     "claude-code",
     "skill",
