@@ -312,6 +312,7 @@ When a user runs `npm install` (or `npm install -g`) on your skill package:
 6. **Compatibility Cleanup**: Removes any legacy installation paths for backward compatibility
 7. **Manifest Update**: Updates the `.skills-manifest.json` to track installed skills
 8. **Post-install Hooks**: Runs any custom setup scripts defined in `.claude-skill.json`
+9. **Settings Merge**: Deep merges any settings from `settings` field into `.claude/settings.json`
 
 ### Uninstallation Process
 
@@ -324,7 +325,8 @@ When a user runs `npm uninstall` (or `npm uninstall -g`) on your skill package:
    - Path using skill name (primary location)
    - Path with full package name (legacy location for compatibility)
 5. **Manifest Update**: Removes the skill entry from `.skills-manifest.json`
-6. **Best-effort Cleanup**: Continues even if some steps fail to ensure clean removal
+6. **Settings Cleanup**: Removes any settings that were merged from this skill
+7. **Best-effort Cleanup**: Continues even if some steps fail to ensure clean removal
 
 ## 🔧 Advanced Features
 
@@ -369,6 +371,40 @@ cat > scripts/config.json <<EOF
 }
 EOF
 ```
+
+### Auto Settings
+
+Automatically merge configuration into `.claude/settings.json`:
+
+```json
+// .claude-skill.json
+{
+  "name": "six-clock-off",
+  "settings": {
+    "hooks": {
+      "SessionEnd": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/six-clock-off"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+When installing, the `settings` field is deeply merged into the user's `.claude/settings.json`. On uninstall, the matching settings are automatically removed.
+
+**Use cases:**
+- Register hooks that auto-trigger your skill (e.g., `SessionEnd`)
+- Add system-level configuration
+- Configure permission settings
+
+**Note:** Unlike `files` which are copied, `settings` are merged, preserving existing configuration.
 
 ## 🐛 Troubleshooting
 

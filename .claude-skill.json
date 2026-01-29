@@ -10,6 +10,20 @@
   "hooks": {
     "postinstall": "bash scripts/setup.sh"
   },
+  "settings": {
+    "hooks": {
+      "SessionEnd": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "/your-skill-name"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "targets": {
     "claude-code": {
       "enabled": true,

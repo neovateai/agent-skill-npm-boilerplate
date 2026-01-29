@@ -87,6 +87,12 @@ function installToTarget(target, config) {
     }
   }
 
+  // Merge settings into .claude/settings.json
+  if (config.settings) {
+    const settingsPath = path.join(location.base, '..', 'settings.json');
+    mergeSettings(settingsPath, config.settings);
+  }
+
   console.log(`  ✅ Installed to ${target.name}`);
   return targetDir;
 }
@@ -187,6 +193,92 @@ function updateManifest(skillsDir, config, targetName) {
   };
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function deepMerge(target, source) {
+  const output = { ...target };
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          output[key] = source[key];
+        } else {
+          output[key] = deepMerge(target[key], source[key]);
+        }
+      } else {
+        output[key] = source[key];
+      }
+    });
+  }
+  return output;
+}
+
+function isObject(item) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+function mergeSettings(settingsPath, newSettings) {
+  let existingSettings = {};
+
+  // Read existing settings if the file exists
+  if (fs.existsSync(settingsPath)) {
+    try {
+      existingSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    } catch (error) {
+      console.warn('  ⚠ Warning: Could not parse existing settings.json, creating new one');
+      existingSettings = {};
+    }
+  }
+
+  // Merge new settings with special handling for hooks arrays
+  const mergedSettings = deepMergeWithArrays(existingSettings, newSettings);
+
+  // Write merged settings back
+  fs.writeFileSync(settingsPath, JSON.stringify(mergedSettings, null, 2));
+  console.log(`  ✓ Merged settings into ${settingsPath}`);
+}
+
+function deepMergeWithArrays(target, source) {
+  const output = { ...target };
+
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (Array.isArray(source[key])) {
+        // For arrays, especially hooks, concatenate with deduplication
+        if (!Array.isArray(target[key])) {
+          // Target doesn't have this array key, use source array
+          output[key] = source[key];
+        } else {
+          // Both are arrays, merge with deduplication
+          output[key] = mergeArraysDedupe(target[key], source[key]);
+        }
+      } else if (isObject(source[key])) {
+        if (!(key in target)) {
+          output[key] = source[key];
+        } else {
+          output[key] = deepMergeWithArrays(target[key], source[key]);
+        }
+      } else {
+        output[key] = source[key];
+      }
+    });
+  }
+
+  return output;
+}
+
+function mergeArraysDedupe(existing, newArray) {
+  const result = [...existing];
+
+  for (const newItem of newArray) {
+    // Check if this item already exists in the array
+    const exists = result.some(item => JSON.stringify(item) === JSON.stringify(newItem));
+    if (!exists) {
+      result.push(newItem);
+    }
+  }
+
+  return result;
 }
 
 // Execute installation

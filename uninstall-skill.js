@@ -52,6 +52,12 @@ function uninstallFromTarget(target, config) {
     }
   }
 
+  // Remove settings from .claude/settings.json
+  if (config.settings) {
+    const settingsPath = path.join(location.base, '..', 'settings.json');
+    removeSettings(settingsPath, config.settings, config.name);
+  }
+
   if (removed) {
     console.log(`  ✅ Uninstalled from ${target.name}`);
     return true;
@@ -106,6 +112,81 @@ function uninstallSkill() {
   } else {
     console.log('ℹ️  Skill was not installed');
     console.log('='.repeat(60));
+  }
+}
+
+function isObject(item) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+function removeSettingsItem(obj, pattern) {
+  if (!isObject(obj) && !Array.isArray(obj)) return obj;
+
+  if (Array.isArray(obj)) {
+    // For arrays, filter out items that match the pattern
+    return obj.filter(item => {
+      if (Array.isArray(pattern)) {
+        // If pattern is also an array, filter by comparing each element
+        return !pattern.some(patternItem => JSON.stringify(item) === JSON.stringify(patternItem));
+      }
+      return true;
+    });
+  }
+
+  const result = { ...obj };
+  const patternKeys = Object.keys(pattern);
+
+  patternKeys.forEach(key => {
+    if (Array.isArray(pattern[key])) {
+      // Pattern has an array - filter matching items from result array
+      if (Array.isArray(result[key])) {
+        result[key] = result[key].filter(item => {
+          return !pattern[key].some(patternItem =>
+            JSON.stringify(item) === JSON.stringify(patternItem)
+          );
+        });
+        // Remove the key if array is now empty
+        if (result[key].length === 0) {
+          delete result[key];
+        }
+      }
+    } else if (isObject(pattern[key])) {
+      // Nested object, recurse
+      if (isObject(result[key]) || Array.isArray(result[key])) {
+        result[key] = removeSettingsItem(result[key], pattern[key]);
+        // Remove if now empty (for objects) or empty array
+        if (isObject(result[key]) && Object.keys(result[key]).length === 0) {
+          delete result[key];
+        } else if (Array.isArray(result[key]) && result[key].length === 0) {
+          delete result[key];
+        }
+      }
+    } else {
+      // Exact value match, delete the key
+      if (result[key] === pattern[key]) {
+        delete result[key];
+      }
+    }
+  });
+
+  return result;
+}
+
+function removeSettings(settingsPath, settingsToRemove, skillName) {
+  if (!fs.existsSync(settingsPath)) {
+    console.log('  ℹ️  No settings.json found, skipping cleanup');
+    return;
+  }
+
+  try {
+    const existingSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    const cleanedSettings = removeSettingsItem(existingSettings, settingsToRemove);
+
+    // Write cleaned settings back
+    fs.writeFileSync(settingsPath, JSON.stringify(cleanedSettings, null, 2));
+    console.log(`  ✓ Updated settings.json (removed ${skillName} config)`);
+  } catch (error) {
+    console.warn('  ⚠ Warning: Could not update settings.json:', error.message);
   }
 }
 
